@@ -1,5 +1,3 @@
-// src/modules/auth/controllers/auth.controller.ts
-
 import {
   Controller,
   Post,
@@ -9,17 +7,23 @@ import {
   UseGuards,
   Get,
 } from '@nestjs/common';
-import { Response, Request } from 'express';
+import { Response, Request as ExpressRequest } from 'express';
 import { AuthService } from '../application/auth.service';
-import { RegisterDto } from '../dto/register.dto';
+import { RegisterDto } from '../presentation/dto/register.dto';
 import { LocalAuthGuard } from '../guards/local-auth.guard';
 import { SessionAuthGuard } from '../guards/session-auth.guard';
+import { User } from '../domain/user.entity';
+
+interface SessionRequest extends ExpressRequest {
+  user?: User;
+  logout: (callback: () => any) => void;
+}
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /** Регистрация (не создаём сессию) */
+  /** Регистрация */
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     const user = await this.authService.register(dto);
@@ -30,13 +34,13 @@ export class AuthController {
    * Логин:
    * - LocalAuthGuard вызывает LocalStrategy.validate()
    * - Passport создаёт сессию (serializeUser)
-   * - Возвращаем простой ответ
+   * - req.user заполняется объектом User, req.logout есть
    */
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Req() req: Request, @Res() res: Response) {
-    // Passport уже положил user в req.user и создал сессию
-    const user = req.user as any; // тип User
+  async login(@Req() req: SessionRequest, @Res() res: Response) {
+    // req.user теперь безопасно доступен
+    const user = req.user!;
     return res.json({
       message: 'Logged in',
       user: { id: user.id, email: user.email, role: user.role },
@@ -45,22 +49,23 @@ export class AuthController {
 
   /**
    * Logout:
-   * - req.logout() удаляет сессию (Passport)
-   * - Очищаем cookie, чтобы клиент больше не слал старый sessionId
+   * - вызов req.logout() удалит сессию
+   * - clearCookie уберёт cookie с клиентской стороны
    */
   @UseGuards(SessionAuthGuard)
   @Post('logout')
-  async logout(@Req() req: Request, @Res() res: Response) {
+  async logout(@Req() req: SessionRequest, @Res() res: Response) {
     req.logout(() => {
-      res.clearCookie('travel.sid'); // удаляем клиентский cookie
+      res.clearCookie('travel.sid');
       return res.json({ message: 'Logged out' });
     });
   }
 
-  /** Защищённый маршрут: если пользователь залогинен, возвращаем профиль */
+  /** Профиль: вернёт req.user, если залогинен */
   @UseGuards(SessionAuthGuard)
   @Get('profile')
-  getProfile(@Req() req: Request) {
-    return req.user; // здесь лежит объект User, возвращённый десериализацией
+  getProfile(@Req() req: SessionRequest) {
+    // TS знает, что req.user — User
+    return req.user!;
   }
 }

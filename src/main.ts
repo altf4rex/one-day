@@ -1,19 +1,19 @@
+import Redis from 'ioredis';
+import session from 'express-session';
+import passport from 'passport';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as session from 'express-session';
-import * as passport from 'passport';
-import RedisStore from 'connect-redis';
-import Redis from 'ioredis';
+
+const RedisStore = require('connect-redis')(session);
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const redisClient = new Redis();
-  const redisStore = new RedisStore({ client: redisClient });
 
   app.use(
     session({
-      store: redisStore,
+      store: new RedisStore({ client: redisClient }),
       name: 'travel.sid',
       secret: process.env.SESSION_SECRET || 'supersecretkey',
       resave: false,
