@@ -1,5 +1,6 @@
 CREATE TABLE countries (
     id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
     name VARCHAR(100) NOT NULL,
     importance INT,
     wishes TEXT,

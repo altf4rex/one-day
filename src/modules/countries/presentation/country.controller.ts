@@ -1,5 +1,3 @@
-// src/modules/countries/presentation/country.controller.ts
-
 import {
   Controller,
   Get,
@@ -8,6 +6,8 @@ import {
   Delete,
   Body,
   Param,
+  Req,
+  Query,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -24,95 +24,78 @@ import { Country } from '../domain/country.entity';
 export class CountryController {
   constructor(private readonly service: CountryService) {}
 
-  /**
-   * GET /countries
-   * Возвращает список всех стран.
-   * Код ответа: 200 OK
-   */
+  /** GET /countries?page=1&limit=10 */
   @Get()
-  async findAll(): Promise<Country[]> {
-    const countries = await this.service.findAll();
-    // Если сервис возвращает null или пустой массив — значит просто вернём []
-    return countries ?? [];
+  async findAll(
+    @Req() req: any,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ): Promise<{ items: Country[]; total: number }> {
+    const userId = Number(req.user.id);
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.min(100, Number(limit));
+    return this.service.findAllForUser(userId, pageNum, limitNum);
   }
 
-  /**
-   * GET /countries/:id
-   * Возвращает одну страну по ID.
-   * Код ответа: 200 OK, или 404 Not Found, если не найдена.
-   */
+  /** GET /countries/:id */
   @Get(':id')
-  async findById(@Param('id') id: string): Promise<Country> {
-    const country = await this.service.findById(id);
+  async findById(@Req() req: any, @Param('id') id: string): Promise<Country> {
+    const userId = Number(req.user.id);
+    const country = await this.service.findByIdForUser(userId, Number(id));
     if (!country) {
-      // Если сервис вернул null, бросаем исключение с 404
       throw new NotFoundException(`Country with id ${id} not found`);
     }
     return country;
   }
 
-  /**
-   * POST /countries
-   * Создаёт новую страну.
-   * Код ответа: 201 Created
-   * Заголовок Location: /countries/{newId}
-   */
+  /** POST /countries */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-  async create(@Body() dto: CreateCountryDto): Promise<Country> {
+  async create(
+    @Req() req: any,
+    @Body() dto: CreateCountryDto,
+  ): Promise<Country> {
     try {
-      const created = await this.service.create(dto);
-      // service.create может вернуть созданную сущность или выбросить ошибку
-      return created;
+      const userId = Number(req.user.id);
+      return await this.service.createForUser(userId, dto);
     } catch (e) {
-      // Если DTO некорректен или другие ошибки
       throw new BadRequestException(e.message);
     }
   }
 
-  /**
-   * PATCH /countries/:id
-   * Обновляет поля существующей страны.
-   * Код ответа: 200 OK, или 404 Not Found, если не найдена.
-   */
+  /** PATCH /countries/:id */
   @Patch(':id')
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async update(
+    @Req() req: any,
     @Param('id') id: string,
     @Body() dto: UpdateCountryDto,
   ): Promise<Country> {
-    // Сначала проверим, что существуют данные
-    const existing = await this.service.findById(id);
+    const userId = Number(req.user.id);
+    const existing = await this.service.findByIdForUser(userId, Number(id));
     if (!existing) {
       throw new NotFoundException(`Country with id ${id} not found`);
     }
-
     try {
-      const updated = await this.service.updateById(id, dto);
-      // service.updateById либо вернёт обновлённую сущность, либо бросит ошибку
-      return updated;
+      return await this.service.updateByIdForUser(userId, Number(id), dto);
     } catch (e) {
-      // Если что-то пошло не так на уровне сервиса: валидация, дублирование и т.д.
       throw new BadRequestException(e.message);
     }
   }
 
-  /**
-   * DELETE /countries/:id
-   * Удаляет страну по ID.
-   * Код ответа: 204 No Content, если удалено,
-   *               404 Not Found, если не найдено
-   */
+  /** DELETE /countries/:id */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(@Param('id') id: string): Promise<void> {
-    const existing = await this.service.findById(id);
+  async delete(
+    @Req() req: any,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const userId = Number(req.user.id);
+    const existing = await this.service.findByIdForUser(userId, Number(id));
     if (!existing) {
       throw new NotFoundException(`Country with id ${id} not found`);
     }
-
-    await this.service.deleteById(id);
-    // возвращаем пустое тело, NestJS отдаст 204 No Content
+    await this.service.deleteByIdForUser(userId, Number(id));
   }
 }

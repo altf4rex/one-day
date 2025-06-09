@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min } from 'class-validator';
 
 export class UpdateCountryDto {
   @IsOptional()
@@ -6,6 +6,19 @@ export class UpdateCountryDto {
   name?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  importance?: number;
+
+  @IsOptional()
   @IsString()
-  importance?: string;
+  wishes?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  quote?: string;
 }
